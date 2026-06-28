@@ -2,23 +2,17 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-
-# ---------- DATA LOAD ----------
 import os
-import pandas as pd
-
+# ---------- DATA LOAD ----------
 BASE_DIR = os.path.dirname(__file__)
 
 infra_path = os.path.join(BASE_DIR, "isla_coralina_infrastructure.csv")
 relief_path = os.path.join(BASE_DIR, "isla_coralina_relief_operations.csv")
 
-infra = pd.read_csv(infra_path)
-relief = pd.read_csv(relief_path)
-
 @st.cache_data
 def load_data():
-    infra = pd.read_csv("isla_coralina_infrastructure.csv")
-    relief = pd.read_csv("isla_coralina_relief_operations.csv", parse_dates=["date"])
+    infra = pd.read_csv(infra_path)
+    relief = pd.read_csv(relief_path, parse_dates=["date"])
     relief["fulfillment_rate"] = relief["quantity_delivered"] / relief["quantity_requested"]
     relief["under_80"] = relief["fulfillment_rate"] < 0.8
     return infra, relief
