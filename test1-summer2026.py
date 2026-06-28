@@ -1,11 +1,14 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-# ---------- DATA LOAD ----------
-BASE_DIR = os.path.dirname(__file__)
 
+# ---------- VISUAL POLISH ----------
+px.defaults.template = "plotly_white"
+px.defaults.color_continuous_scale = "Viridis"
+
+# ---------- DATA LOAD ----------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 infra_path = os.path.join(BASE_DIR, "isla_coralina_infrastructure.csv")
 relief_path = os.path.join(BASE_DIR, "isla_coralina_relief_operations.csv")
 
@@ -24,13 +27,17 @@ supply_types = sorted(relief["supply_type"].unique())
 
 st.set_page_config(page_title="Isla Coralina Relief Dashboard", layout="wide")
 
+# ---------- TITLE ----------
 st.title("Isla Coralina Relief Operations Dashboard")
 
+# Refresh button
 if st.button("🔁 Refresh data"):
     infra, relief = load_data()
     st.experimental_rerun()
 
-# ---------- GLOBAL FILTERS ----------
+st.divider()
+
+# ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("Global Filters")
 
 muni_filter = st.sidebar.multiselect("Municipality", municipalities, default=municipalities)
@@ -39,6 +46,7 @@ supply_filter = st.sidebar.multiselect("Supply type", supply_types, default=supp
 date_min, date_max = relief["date"].min(), relief["date"].max()
 date_range = st.sidebar.date_input("Date range", [date_min, date_max])
 
+# Apply filters
 relief_f = relief[
     (relief["municipality"].isin(muni_filter)) &
     (relief["supply_type"].isin(supply_filter)) &
@@ -66,6 +74,8 @@ with tab_infra:
         st.write("Non-operational critical facilities by municipality")
         st.dataframe(non_op_critical.rename("count"))
 
+    st.divider()
+
     st.subheader("Infrastructure status by municipality and type")
 
     fig1 = px.scatter(
@@ -86,21 +96,19 @@ with tab_infra:
     )
     st.plotly_chart(fig2, width='stretch')
 
-    st.markdown("""
-    **Interpretation:** Municipalities with clusters of non-operational hospitals or water treatment plants,
-    especially under current filters, represent high-risk gaps in service coverage. Convoys and repair crews
-    should be prioritized toward these areas to restore medical and water access.
-    """)
+    st.caption("Critical infrastructure gaps should guide convoy and repair crew prioritization.")
 
 # ---------- TAB 2: RELIEF ----------
 with tab_relief:
-    st.subheader("Relief operations KPIs")
-
     st.subheader("Summary: Weekly Fulfillment Trend")
+
     summary = relief.groupby(pd.Grouper(key="date", freq="W"))["fulfillment_rate"].mean().reset_index()
     fig_summary = px.line(summary, x="date", y="fulfillment_rate", title="Weekly Fulfillment Rate Trend")
     st.plotly_chart(fig_summary, width='stretch')
+
     st.divider()
+
+    st.subheader("Relief operations KPIs")
 
     total_deliveries = len(relief_f)
     avg_delay = relief_f["delivery_delay_hours"].mean()
@@ -113,6 +121,8 @@ with tab_relief:
         st.metric("Average delivery delay (hours)", f"{avg_delay:.2f}")
     with c3:
         st.metric("Deliveries < 80% fulfilled", f"{pct_under_80:.1f}%")
+
+    st.divider()
 
     st.subheader("Fulfillment and delays")
 
@@ -146,17 +156,20 @@ with tab_relief:
     )
     st.plotly_chart(fig6, width='stretch')
 
+    st.divider()
+
+    # Download button
     st.download_button(
-    label="⬇️ Download filtered relief data (CSV)",
-    data=relief_f.to_csv(index=False),
-    file_name="relief_filtered.csv",
-    mime="text/csv"
+        label="⬇️ Download filtered relief data (CSV)",
+        data=relief_f.to_csv(index=False),
+        file_name="relief_filtered.csv",
+        mime="text/csv"
     )
-    
+
     st.markdown("""
     **Interpretation:** Under current filters, municipalities with the lowest fulfillment rates and longest delays
     should be prioritized for additional convoys and alternative transport (helicopter/boat), especially where
-    road access is limited or weather conditions are severe. Supply types with consistently low fulfillment
-    (e.g., medical supplies, food) should receive dedicated load planning for the next operational period.
+    road access is limited or weather conditions are severe.
     """)
+
 
