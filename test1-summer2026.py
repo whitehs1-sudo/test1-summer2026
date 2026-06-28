@@ -5,7 +5,8 @@ import plotly.express as px
 
 # ---------- DATA LOAD ----------
 import os
-# Get the directory where the script is running
+import pandas as pd
+
 BASE_DIR = os.path.dirname(__file__)
 
 infra_path = os.path.join(BASE_DIR, "isla_coralina_infrastructure.csv")
