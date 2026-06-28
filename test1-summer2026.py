@@ -1,0 +1,141 @@
+# app.py
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+# ---------- DATA LOAD ----------
+@st.cache_data
+def load_data():
+    infra = pd.read_csv("isla_coralina_infrastructure.csv")
+    relief = pd.read_csv("isla_coralina_relief_operations.csv", parse_dates=["date"])
+    relief["fulfillment_rate"] = relief["quantity_delivered"] / relief["quantity_requested"]
+    relief["under_80"] = relief["fulfillment_rate"] < 0.8
+    return infra, relief
+
+infra, relief = load_data()
+
+municipalities = sorted(infra["municipality"].unique())
+supply_types = sorted(relief["supply_type"].unique())
+
+st.set_page_config(page_title="Isla Coralina Relief Dashboard", layout="wide")
+
+st.title("Isla Coralina Relief Operations Dashboard")
+
+# ---------- GLOBAL FILTERS ----------
+col_f1, col_f2, col_f3 = st.columns(3)
+with col_f1:
+    muni_filter = st.multiselect("Municipality", municipalities, default=municipalities)
+with col_f2:
+    supply_filter = st.multiselect("Supply type", supply_types, default=supply_types)
+with col_f3:
+    date_min, date_max = relief["date"].min(), relief["date"].max()
+    date_range = st.date_input("Date range", [date_min, date_max])
+
+relief_f = relief[
+    (relief["municipality"].isin(muni_filter)) &
+    (relief["supply_type"].isin(supply_filter)) &
+    (relief["date"].between(pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])))
+]
+infra_f = infra[infra["municipality"].isin(muni_filter)]
+
+# ---------- TABS ----------
+tab_infra, tab_relief = st.tabs(["Infrastructure status", "Relief distribution"])
+
+# ---------- TAB 1: INFRASTRUCTURE ----------
+with tab_infra:
+    st.subheader("Key infrastructure KPIs")
+
+    total_pop_served = infra_f["population_served"].sum()
+    non_op_critical = infra_f[
+        (infra_f["operational_status"] == "Non-Operational") &
+        (infra_f["facility_type"].isin(["Hospital", "Water Treatment Plant"]))
+    ].groupby("municipality")["facility_id"].count()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Total population served (filtered)", f"{total_pop_served:,}")
+    with c2:
+        st.write("Non-operational critical facilities by municipality")
+        st.dataframe(non_op_critical.rename("count"))
+
+    st.subheader("Infrastructure status by municipality and type")
+
+    fig1 = px.scatter(
+        infra_f,
+        x="longitude", y="latitude",
+        color="operational_status",
+        symbol="facility_type",
+        hover_name="facility_name",
+        hover_data=["municipality", "damage_severity", "population_served"],
+        title="Spatial distribution of infrastructure status"
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+    fig2 = px.bar(
+        infra_f.groupby(["municipality", "operational_status"])["facility_id"].count().reset_index(),
+        x="municipality", y="facility_id", color="operational_status",
+        title="Facility counts by municipality and status"
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.markdown("""
+    **Interpretation:** Municipalities with clusters of non-operational hospitals or water treatment plants,
+    especially under current filters, represent high-risk gaps in service coverage. Convoys and repair crews
+    should be prioritized toward these areas to restore medical and water access.
+    """)
+
+# ---------- TAB 2: RELIEF ----------
+with tab_relief:
+    st.subheader("Relief operations KPIs")
+
+    total_deliveries = len(relief_f)
+    avg_delay = relief_f["delivery_delay_hours"].mean()
+    pct_under_80 = relief_f["under_80"].mean() * 100
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Total deliveries (filtered)", f"{total_deliveries}")
+    with c2:
+        st.metric("Average delivery delay (hours)", f"{avg_delay:.2f}")
+    with c3:
+        st.metric("Deliveries < 80% fulfilled", f"{pct_under_80:.1f}%")
+
+    st.subheader("Fulfillment and delays")
+
+    fig3 = px.box(
+        relief_f,
+        x="municipality", y="fulfillment_rate",
+        title="Fulfillment rate by municipality",
+        points="all"
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+    fig4 = px.box(
+        relief_f,
+        x="transport_mode", y="delivery_delay_hours",
+        color="road_condition",
+        title="Delivery delay by transport mode and road condition"
+    )
+    st.plotly_chart(fig4, use_container_width=True)
+
+    fig5 = px.line(
+        relief_f.groupby("date")["fulfillment_rate"].mean().reset_index(),
+        x="date", y="fulfillment_rate",
+        title="Daily average fulfillment rate over time"
+    )
+    st.plotly_chart(fig5, use_container_width=True)
+
+    fig6 = px.bar(
+        relief_f.groupby("supply_type")["fulfillment_rate"].mean().reset_index(),
+        x="supply_type", y="fulfillment_rate",
+        title="Average fulfillment rate by supply type"
+    )
+    st.plotly_chart(fig6, use_container_width=True)
+
+    st.markdown("""
+    **Interpretation:** Under current filters, municipalities with the lowest fulfillment rates and longest delays
+    should be prioritized for additional convoys and alternative transport (helicopter/boat), especially where
+    road access is limited or weather conditions are severe. Supply types with consistently low fulfillment
+    (e.g., medical supplies, food) should receive dedicated load planning for the next operational period.
+    """)
+
