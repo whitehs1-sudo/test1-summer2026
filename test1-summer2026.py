@@ -4,6 +4,16 @@ import pandas as pd
 import plotly.express as px
 
 # ---------- DATA LOAD ----------
+import os
+# Get the directory where the script is running
+BASE_DIR = os.path.dirname(__file__)
+
+infra_path = os.path.join(BASE_DIR, "isla_coralina_infrastructure.csv")
+relief_path = os.path.join(BASE_DIR, "isla_coralina_relief_operations.csv")
+
+infra = pd.read_csv(infra_path)
+relief = pd.read_csv(relief_path)
+
 @st.cache_data
 def load_data():
     infra = pd.read_csv("isla_coralina_infrastructure.csv")
