@@ -26,15 +26,18 @@ st.set_page_config(page_title="Isla Coralina Relief Dashboard", layout="wide")
 
 st.title("Isla Coralina Relief Operations Dashboard")
 
+if st.button("🔁 Refresh data"):
+    infra, relief = load_data()
+    st.experimental_rerun()
+
 # ---------- GLOBAL FILTERS ----------
-col_f1, col_f2, col_f3 = st.columns(3)
-with col_f1:
-    muni_filter = st.multiselect("Municipality", municipalities, default=municipalities)
-with col_f2:
-    supply_filter = st.multiselect("Supply type", supply_types, default=supply_types)
-with col_f3:
-    date_min, date_max = relief["date"].min(), relief["date"].max()
-    date_range = st.date_input("Date range", [date_min, date_max])
+st.sidebar.header("Global Filters")
+
+muni_filter = st.sidebar.multiselect("Municipality", municipalities, default=municipalities)
+supply_filter = st.sidebar.multiselect("Supply type", supply_types, default=supply_types)
+
+date_min, date_max = relief["date"].min(), relief["date"].max()
+date_range = st.sidebar.date_input("Date range", [date_min, date_max])
 
 relief_f = relief[
     (relief["municipality"].isin(muni_filter)) &
@@ -74,14 +77,14 @@ with tab_infra:
         hover_data=["municipality", "damage_severity", "population_served"],
         title="Spatial distribution of infrastructure status"
     )
-    st.plotly_chart(fig1, use_container_width=True)
+    st.plotly_chart(fig1, width='stretch')
 
     fig2 = px.bar(
         infra_f.groupby(["municipality", "operational_status"])["facility_id"].count().reset_index(),
         x="municipality", y="facility_id", color="operational_status",
         title="Facility counts by municipality and status"
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width='stretch')
 
     st.markdown("""
     **Interpretation:** Municipalities with clusters of non-operational hospitals or water treatment plants,
@@ -92,6 +95,12 @@ with tab_infra:
 # ---------- TAB 2: RELIEF ----------
 with tab_relief:
     st.subheader("Relief operations KPIs")
+
+    st.subheader("Summary: Weekly Fulfillment Trend")
+    summary = relief.groupby(pd.Grouper(key="date", freq="W"))["fulfillment_rate"].mean().reset_index()
+    fig_summary = px.line(summary, x="date", y="fulfillment_rate", title="Weekly Fulfillment Rate Trend")
+    st.plotly_chart(fig_summary, width='stretch')
+    st.divider()
 
     total_deliveries = len(relief_f)
     avg_delay = relief_f["delivery_delay_hours"].mean()
@@ -113,7 +122,7 @@ with tab_relief:
         title="Fulfillment rate by municipality",
         points="all"
     )
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, width='stretch')
 
     fig4 = px.box(
         relief_f,
@@ -121,22 +130,29 @@ with tab_relief:
         color="road_condition",
         title="Delivery delay by transport mode and road condition"
     )
-    st.plotly_chart(fig4, use_container_width=True)
+    st.plotly_chart(fig4, width='stretch')
 
     fig5 = px.line(
         relief_f.groupby("date")["fulfillment_rate"].mean().reset_index(),
         x="date", y="fulfillment_rate",
         title="Daily average fulfillment rate over time"
     )
-    st.plotly_chart(fig5, use_container_width=True)
+    st.plotly_chart(fig5, width='stretch')
 
     fig6 = px.bar(
         relief_f.groupby("supply_type")["fulfillment_rate"].mean().reset_index(),
         x="supply_type", y="fulfillment_rate",
         title="Average fulfillment rate by supply type"
     )
-    st.plotly_chart(fig6, use_container_width=True)
+    st.plotly_chart(fig6, width='stretch')
 
+    st.download_button(
+    label="⬇️ Download filtered relief data (CSV)",
+    data=relief_f.to_csv(index=False),
+    file_name="relief_filtered.csv",
+    mime="text/csv"
+    )
+    
     st.markdown("""
     **Interpretation:** Under current filters, municipalities with the lowest fulfillment rates and longest delays
     should be prioritized for additional convoys and alternative transport (helicopter/boat), especially where
